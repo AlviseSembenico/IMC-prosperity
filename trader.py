@@ -18,7 +18,6 @@ def compute_last_price(order_depth: OrderDepth):
 
 
 def amethysts_policy(state: TradingState, order_depth: OrderDepth, previous_info: dict):
-    return []
     product = "AMETHYSTS"
     orders = []
     acceptable_price = 10000
