@@ -7,7 +7,7 @@ on:
 jobs:
   example-3:
     name: Backtest current strategy
-    runs-on: "ubuntu-latest"
+    runs-on: "windows-latest"
     defaults:
       run:
         shell: bash -el {0}
