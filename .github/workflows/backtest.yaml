@@ -1,3 +1,9 @@
+name: backtest
+
+on:
+  push:
+    branches:
+      - "*"
 jobs:
   example-3:
     name: Ex3 Linux
