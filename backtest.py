@@ -7,11 +7,10 @@ import pandas as pd
 from tqdm import tqdm
 
 from datamodel import Order, OrderDepth, TradingState
-from trader import Trader
+from trader import Trader, set_debug
 
-os.environ["DEBUG"] = "True"
+set_debug(True)
 products = ["AMETHYSTS", "STARFRUIT"]
-products = ["STARFRUIT"]
 
 LIMIT_POSITIONS = {
     "AMETHYSTS": 20,

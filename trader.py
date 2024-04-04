@@ -3,10 +3,12 @@ import numpy as np
 
 from datamodel import Order, OrderDepth, TradingState
 
-TRADER_DATA = "trader_data"
-# import os
-# DEBUG = os.getenv("DEBUG", "False") == "True"
 DEBUG = False
+
+
+def set_debug(debug):
+    global DEBUG
+    DEBUG = debug
 
 
 def compute_last_price(order_depth: OrderDepth):
