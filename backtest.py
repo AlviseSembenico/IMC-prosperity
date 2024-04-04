@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 
 import click
@@ -8,6 +9,7 @@ from tqdm import tqdm
 from datamodel import Order, OrderDepth, TradingState
 from trader import Trader
 
+os.environ["DEBUG"] = "True"
 products = ["AMETHYSTS", "STARFRUIT"]
 products = ["STARFRUIT"]
 
@@ -84,7 +86,7 @@ class MarketSimulator:
 
     def run(self):
         trader_data = ""
-        for i in tqdm(range(self.num_days // 10)):
+        for i in tqdm(range(self.num_days // 1)):
             row = self.df[self.df.timestamp == i * 100]
             order_depth = self.get_order_depth(self.df, i * 100)
 
@@ -138,13 +140,13 @@ class MarketSimulator:
                         state.order_depths[product].buy_orders.items()
                     )[0]
 
-                # assert (
-                #     order.price == price
-                # ), f"order.price = {order.price} while it should be {price}"
-                # # TODO: this works for only one price order
-                # assert (
-                #     order.quantity <= max_amount
-                # ), f"order.quantity = {order.quantity} while it should be <= {max_amount}"
+                assert (
+                    order.price == price
+                ), f"order.price = {order.price} while it should be {price}"
+                # TODO: this works for only one price order
+                assert (
+                    order.quantity <= max_amount
+                ), f"order.quantity = {order.quantity} while it should be <= {max_amount}"
 
                 if self.player_position[product] + order.quantity > 0:
                     max_tradable = min(
