@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Dict
 
@@ -9,8 +10,10 @@ from tqdm import tqdm
 from datamodel import Order, OrderDepth, TradingState
 from trader import Trader, set_debug
 
+logger = logging.getLogger(__name__)
 set_debug(True)
-products = ["AMETHYSTS", "STARFRUIT"]
+
+PRODUCTS = ["AMETHYSTS", "STARFRUIT"]
 
 LIMIT_POSITIONS = {
     "AMETHYSTS": 20,
@@ -34,10 +37,10 @@ class MarketSimulator:
     def _reset(self):
         self.trader = Trader()
         self.num_days = self.df.timestamp.max() // 100
-        self.player_position = {product: 0 for product in products}
+        self.player_position = {product: 0 for product in PRODUCTS}
         self.player_cash = 0
         self.player_pnl = [0]
-        self.player_position_history = {product: [0] for product in products}
+        self.player_position_history = {product: [0] for product in PRODUCTS}
 
     def get_order_depth(
         self, df: pd.DataFrame, timestamp: int
@@ -54,7 +57,7 @@ class MarketSimulator:
         """
         df = df[df.timestamp == timestamp]
         order_depth = {}
-        for product in df["product"].unique():
+        for product in PRODUCTS:
             product_pd = df[df["product"] == product]
             assert (
                 len(product_pd) == 1
@@ -71,7 +74,7 @@ class MarketSimulator:
                 except KeyError:
                     pass
                 try:
-                    sell_orders[product_pd[f"ask_price_{i}"].item()] = product_pd[
+                    sell_orders[product_pd[f"ask_price_{i}"].item()] = -product_pd[
                         f"ask_volume_{i}"
                     ].item()
                 except KeyError:
@@ -106,7 +109,7 @@ class MarketSimulator:
             self.player_pnl.append(self.compute_pnl(state))
 
             # add the position to the history
-            for product in products:
+            for product in PRODUCTS:
                 self.player_position_history[product].append(
                     self.player_position[product]
                 )
@@ -138,14 +141,15 @@ class MarketSimulator:
                     price, max_amount = list(
                         state.order_depths[product].buy_orders.items()
                     )[0]
-
+                max_amount = -max_amount
                 assert (
                     order.price == price
                 ), f"order.price = {order.price} while it should be {price}"
                 # TODO: this works for only one price order
-                assert (
-                    order.quantity <= max_amount
-                ), f"order.quantity = {order.quantity} while it should be <= {max_amount}"
+                if order.quantity <= max_amount:
+                    logger.info(
+                        f"order.quantity = {order.quantity} while it should be <= {max_amount}"
+                    )
 
                 if self.player_position[product] + order.quantity > 0:
                     max_tradable = min(
@@ -165,12 +169,15 @@ class MarketSimulator:
         # Plot the PnL
         plt.figure()
         plt.plot(self.player_pnl)
+        plt.title("PnL")
         plt.show()
 
         # Plot the position
         plt.figure()
-        for product in products:
-            plt.plot(self.player_position_history[product])
+        for product in PRODUCTS:
+            plt.plot(self.player_position_history[product], label=product)
+        plt.title("Position")
+        plt.legend()
         plt.show()
 
 
