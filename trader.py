@@ -1,8 +1,14 @@
 import jsonpickle
+import numpy as np
 
 from datamodel import Order, OrderDepth, TradingState
 
-TRADER_DATA = "trader_data"
+DEBUG = False
+
+
+def set_debug(debug):
+    global DEBUG
+    DEBUG = debug
 
 
 def compute_last_price(order_depth: OrderDepth):
@@ -54,11 +60,24 @@ def starfruits_policy(
     orders = []
     acceptable_price = 0
     info = {}
+    window_size = 20
 
     if len(order_depth.sell_orders) != 0:
         best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
         if int(best_ask) < acceptable_price:
             orders.append(Order(product, best_ask, -best_ask_amount))
+
+        # current_price = compute_last_price(order_depth)
+        # if len(previous_info["last_price"]) >= window_size:
+        #     current_price_change = current_price - previous_info["last_price"][-1]
+        #     last_price_changes = np.abs(
+        #         np.diff(previous_info["last_price"][-window_size:])
+        #     )
+        #     if (
+        #         current_price < previous_info["last_price"][-1]
+        #         and abs(current_price_change) > np.mean(last_price_changes) * 1
+        #     ):
+        #         orders.append(Order(product, best_ask, -best_ask_amount))
 
     if len(order_depth.buy_orders) != 0:
         best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
@@ -78,25 +97,31 @@ def generate_empty_info(products):
 class Trader:
 
     def run(self, state: TradingState):
-        print("traderData: " + state.traderData)
-        print("Observations: " + str(state.observations))
-        previous_info = jsonpickle.decode(state.traderData)
+        if not DEBUG:
+            print("State: " + str(state))
+            print("Observations: " + str(state.observations))
+        try:
+            previous_info = jsonpickle.decode(state.traderData)
+        except:
+            previous_info = None
         if previous_info is None:
             previous_info = generate_empty_info(state.order_depths.keys())
 
         # Orders to be placed on exchange matching engine
         result = {}
-        product_info = {}
         for product in state.order_depths:
             order_depth: OrderDepth = state.order_depths[product]
             orders = []
+            info = {}
             orders, info = products_mapping[product](
-                state, order_depth, previous_info.get(product, {})
+                state, order_depth, previous_info.get(product)
             )
             result[product] = orders
-            product_info[product] = info
-            previous_info[product]["last_price"] = compute_last_price(order_depth)
+            previous_info[product]["generated"] = info
+            previous_info[product]["last_price"].append(compute_last_price(order_depth))
 
         # Sample conversion request. Check more details below.
         conversions = 1
-        return result, conversions, jsonpickle.encode(product_info)
+        if not DEBUG:
+            previous_info = jsonpickle.encode(previous_info)
+        return result, conversions, previous_info
