@@ -28,6 +28,7 @@ def amethysts_policy(state: TradingState, order_depth: OrderDepth, previous_info
     orders = []
     acceptable_price = 10000
     info = {}
+    marker = None
 
     current_position = state.position.get(product, 0)
 
@@ -50,7 +51,7 @@ def amethysts_policy(state: TradingState, order_depth: OrderDepth, previous_info
             # discard the short position
             orders.append(Order(product, acceptable_price, -current_position))
 
-    return orders, info
+    return orders, info, marker
 
 
 def starfruits_policy(
@@ -61,6 +62,7 @@ def starfruits_policy(
     acceptable_price = 0
     info = {}
     window_size = 20
+    marker = None
 
     if len(order_depth.sell_orders) != 0:
         best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
@@ -84,7 +86,7 @@ def starfruits_policy(
         if int(best_bid) > acceptable_price:
             orders.append(Order(product, best_bid, -best_bid_amount))
 
-    return orders, info
+    return orders, info, marker
 
 
 products_mapping = {"AMETHYSTS": amethysts_policy, "STARFRUIT": starfruits_policy}
@@ -109,14 +111,16 @@ class Trader:
 
         # Orders to be placed on exchange matching engine
         result = {}
+        markers = {}
         for product in state.order_depths:
             order_depth: OrderDepth = state.order_depths[product]
             orders = []
             info = {}
-            orders, info = products_mapping[product](
+            orders, info, marker = products_mapping[product](
                 state, order_depth, previous_info.get(product)
             )
             result[product] = orders
+            markers[product] = marker
             previous_info[product]["generated"] = info
             previous_info[product]["last_price"].append(compute_last_price(order_depth))
 
@@ -124,4 +128,5 @@ class Trader:
         conversions = 1
         if not DEBUG:
             previous_info = jsonpickle.encode(previous_info)
-        return result, conversions, previous_info
+            return result, conversions, previous_info
+        return result, conversions, previous_info, markers

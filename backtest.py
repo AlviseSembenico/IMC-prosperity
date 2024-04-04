@@ -12,7 +12,7 @@ from trader import Trader, set_debug
 
 logger = logging.getLogger(__name__)
 set_debug(True)
-
+COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 PRODUCTS = ["AMETHYSTS", "STARFRUIT"]
 
 LIMIT_POSITIONS = {
@@ -29,6 +29,7 @@ class MarketSimulator:
     player_cash: int = 0
     player_pnl: list[int]
     player_position_history: Dict[str, list[int]]
+    markers: Dict[str, list[tuple[int, int]]]
 
     def __init__(self, day: int) -> None:
         self.df = pd.read_csv(f"data/day{day}.csv", delimiter=";")
@@ -41,6 +42,7 @@ class MarketSimulator:
         self.player_cash = 0
         self.player_pnl = [0]
         self.player_position_history = {product: [0] for product in PRODUCTS}
+        self.markers = {product: [] for product in PRODUCTS}
 
     def get_order_depth(
         self, df: pd.DataFrame, timestamp: int
@@ -88,7 +90,7 @@ class MarketSimulator:
 
     def run(self):
         trader_data = ""
-        for i in tqdm(range(self.num_days // 1)):
+        for i in tqdm(range(self.num_days // 10)):
             row = self.df[self.df.timestamp == i * 100]
             order_depth = self.get_order_depth(self.df, i * 100)
 
@@ -104,7 +106,7 @@ class MarketSimulator:
                 observations=None,
             )
 
-            orders, conversions, trader_data = self.trader.run(state)
+            orders, conversions, trader_data, markers = self.trader.run(state)
             self.compute_trades(orders, state)
             self.player_pnl.append(self.compute_pnl(state))
 
@@ -113,6 +115,9 @@ class MarketSimulator:
                 self.player_position_history[product].append(
                     self.player_position[product]
                 )
+            for product, marker in markers.items():
+                if marker is not None:
+                    self.markers[product].append((i, marker))
         self.plot()
 
     def compute_pnl(self, state: TradingState):
@@ -176,6 +181,14 @@ class MarketSimulator:
         plt.figure()
         for product in PRODUCTS:
             plt.plot(self.player_position_history[product], label=product)
+            x = list(map(lambda x: x[0], self.markers[product]))
+            y = [
+                self.player_position_history[product][xi[0]]
+                for xi in self.markers[product]
+            ]
+            colors = [COLORS[xi[1]] for xi in self.markers[product]]
+            if x:
+                plt.scatter(x, y, c=colors, marker="o", linestyle="None")
         plt.title("Position")
         plt.legend()
         plt.show()
