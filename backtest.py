@@ -1,6 +1,7 @@
 from typing import Dict
 
 import click
+import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 
@@ -21,6 +22,7 @@ class MarketSimulator:
     player_position: Dict[str, int]
     player_cash: int = 0
     player_pnl: list[int]
+    player_position_history: Dict[str, list[int]]
 
     def __init__(self, day: int) -> None:
         self.df = pd.read_csv(f"data/day{day}.csv", delimiter=";")
@@ -32,6 +34,7 @@ class MarketSimulator:
         self.player_position = {product: 0 for product in products}
         self.player_cash = 0
         self.player_pnl = [0]
+        self.player_position_history = {product: [0] for product in products}
 
     def get_order_depth(
         self, df: pd.DataFrame, timestamp: int
@@ -79,7 +82,7 @@ class MarketSimulator:
 
     def run(self):
         trader_data = ""
-        for i in tqdm(range(self.num_days)):
+        for i in tqdm(range(self.num_days // 10)):
             row = self.df[self.df.timestamp == i * 100]
             order_depth = self.get_order_depth(self.df, i * 100)
 
@@ -99,12 +102,24 @@ class MarketSimulator:
             self.compute_trades(orders, state)
             self.player_pnl.append(self.compute_pnl(state))
 
+            # add the position to the history
+            for product in products:
+                self.player_position_history[product].append(
+                    self.player_position[product]
+                )
+        self.plot()
+
     def compute_pnl(self, state: TradingState):
         """Compute the PnL of the player"""
         pnl = 0
         for product, position in self.player_position.items():
-            pnl += state.order_depths[product].sell_orders[0] * position
-        return pnl
+            # TODO: this breaks if there is no buy or sell orders
+            mid_price = (
+                list(state.order_depths[product].sell_orders.items())[0][0]
+                + list(state.order_depths[product].buy_orders.items())[0][0]
+            ) / 2
+            pnl += mid_price * position
+        return self.player_cash + pnl
 
     def compute_trades(self, order, state: TradingState):
         """Computes the trades based on the orders and the state of the market.
@@ -142,6 +157,11 @@ class MarketSimulator:
 
                 self.player_position[product] += max_tradable
                 self.player_cash -= order.price * max_tradable
+
+    def plot(self):
+        plt.figure()
+        plt.plot(self.player_pnl)
+        plt.show()
 
 
 @click.command()
