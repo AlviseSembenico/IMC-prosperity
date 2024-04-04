@@ -9,6 +9,8 @@ from datamodel import Order, OrderDepth, TradingState
 from trader import Trader
 
 products = ["AMETHYSTS", "STARFRUIT"]
+products = ["STARFRUIT"]
+
 LIMIT_POSITIONS = {
     "AMETHYSTS": 20,
     "STARFRUIT": 20,
@@ -144,23 +146,30 @@ class MarketSimulator:
                 #     order.quantity <= max_amount
                 # ), f"order.quantity = {order.quantity} while it should be <= {max_amount}"
 
-                if order.quantity * self.player_position[product] < 0:
-                    max_tradable = max(
-                        order.quantity,
-                        -(LIMIT_POSITIONS[product] + self.player_position[product]),
-                    )
-                else:
+                if self.player_position[product] + order.quantity > 0:
                     max_tradable = min(
                         order.quantity,
                         LIMIT_POSITIONS[product] - self.player_position[product],
+                    )
+                else:
+                    max_tradable = max(
+                        order.quantity,
+                        -LIMIT_POSITIONS[product] - self.player_position[product],
                     )
 
                 self.player_position[product] += max_tradable
                 self.player_cash -= order.price * max_tradable
 
     def plot(self):
+        # Plot the PnL
         plt.figure()
         plt.plot(self.player_pnl)
+        plt.show()
+
+        # Plot the position
+        plt.figure()
+        for product in products:
+            plt.plot(self.player_position_history[product])
         plt.show()
 
 
