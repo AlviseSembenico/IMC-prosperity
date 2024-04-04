@@ -6,7 +6,7 @@ on:
       - "*"
 jobs:
   example-3:
-    name: Ex3 Linux
+    name: Backtest current strategy
     runs-on: "ubuntu-latest"
     defaults:
       run:
@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          activate-environment: anaconda-client-env
+          activate-environment: prosperity
           environment-file: environment.yml
           python-version: 3.12
           auto-activate-base: false
