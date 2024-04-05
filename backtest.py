@@ -1,10 +1,10 @@
 import logging
-import os
 import sys
 from typing import Dict
 
 import click
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 set_debug(True)
 COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 PRODUCTS = ["AMETHYSTS", "STARFRUIT"]
-
+PRODUCTS = ["STARFRUIT"]
 LIMIT_POSITIONS = {
     "AMETHYSTS": 20,
     "STARFRUIT": 20,
@@ -192,13 +192,28 @@ class MarketSimulator:
         for product in PRODUCTS:
             plt.figure(dpi=1200)
 
-            mid_price = self.df[
+            df = self.df[
                 (self.df["timestamp"].isin(self.timestamps))
                 & (self.df["product"] == product)
-            ].mid_price.values
-            plt.plot(self.timestamps, mid_price, label=product, linewidth=0.5)
+            ]
+            mid_price = df.mid_price.values
+            plt.plot(
+                np.array(self.timestamps) / 100, mid_price, label=product, linewidth=0.5
+            )
+            plt.plot(
+                np.array(self.timestamps) / 100,
+                df.bid_price_1,
+                label="Bid Price",
+                linewidth=0.5,
+            )
+            plt.plot(
+                np.array(self.timestamps) / 100,
+                df.ask_price_1,
+                label="Ask Price",
+                linewidth=0.5,
+            )
 
-            x = [xi[0] * 100 for xi in self.markers[product]]
+            x = [xi[0] for xi in self.markers[product]]
             y = [mid_price[xi[0]] for xi in self.markers[product]]
             colors = [COLORS[xi[1]] for xi in self.markers[product]]
             if x:
