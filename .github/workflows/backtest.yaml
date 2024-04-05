@@ -6,7 +6,9 @@ on:
     branches:
       - "main"
 jobs:
-  example-3:
+  run_backtest:
+    permissions:
+      pull-requests: write-all
     name: Backtest current strategy
     runs-on: "windows-latest"
     defaults:
