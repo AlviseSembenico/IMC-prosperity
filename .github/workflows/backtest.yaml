@@ -1,9 +1,10 @@
 name: backtest
 
 on:
+  pull_request:
   push:
     branches:
-      - "*"
+      - "main"
 jobs:
   example-3:
     name: Backtest current strategy

@@ -61,7 +61,7 @@ def starfruits_policy(
     orders = []
     acceptable_price = 0
     info = {}
-    window_size = 20
+    window_size = 5
     marker = None
 
     if len(order_depth.sell_orders) != 0:
@@ -103,10 +103,13 @@ class Trader:
         if not DEBUG:
             print("State: " + str(state))
             print("Observations: " + str(state.observations))
-        try:
-            previous_info = jsonpickle.decode(state.traderData)
-        except:
-            previous_info = None
+            try:
+                previous_info = jsonpickle.decode(state.traderData)
+            except:
+                previous_info = None
+        else:
+            # We dont encode it during debug
+            previous_info = state.traderData
         if previous_info is None:
             previous_info = generate_empty_info(state.order_depths.keys())
 

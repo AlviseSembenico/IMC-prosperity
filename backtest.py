@@ -31,6 +31,7 @@ class MarketSimulator:
     player_pnl: list[int]
     player_position_history: Dict[str, list[int]]
     markers: Dict[str, list[tuple[int, int]]]
+    timestamps: list[int]
 
     def __init__(self, day: int) -> None:
         self.df = pd.read_csv(f"data/day{day}.csv", delimiter=";")
@@ -44,6 +45,7 @@ class MarketSimulator:
         self.player_pnl = [0]
         self.player_position_history = {product: [0] for product in PRODUCTS}
         self.markers = {product: [] for product in PRODUCTS}
+        self.timestamps = []
 
     def get_order_depth(
         self, df: pd.DataFrame, timestamp: int
@@ -90,9 +92,8 @@ class MarketSimulator:
         return order_depth
 
     def run(self, max_steps: int):
-        trader_data = ""
+        trader_data = None
         for i in tqdm(range(min(self.num_days // 1, max_steps))):
-            row = self.df[self.df.timestamp == i * 100]
             order_depth = self.get_order_depth(self.df, i * 100)
 
             state = TradingState(
@@ -119,6 +120,7 @@ class MarketSimulator:
             for product, marker in markers.items():
                 if marker is not None:
                     self.markers[product].append((i, marker))
+            self.timestamps.append(i * 100)
         self.plot()
 
     def compute_pnl(self, state: TradingState):
@@ -173,26 +175,36 @@ class MarketSimulator:
 
     def plot(self):
         # Plot the PnL
-        plt.figure(dpi=600)
+        plt.figure(dpi=1200)
         plt.plot(self.player_pnl, linewidth=0.5)
         plt.title("PnL")
-        plt.show()
+        plt.savefig("plots/pnl.png")
 
         # Plot the position
-        plt.figure()
+        plt.figure(dpi=1200)
         for product in PRODUCTS:
             plt.plot(self.player_position_history[product], label=product)
-            x = list(map(lambda x: x[0], self.markers[product]))
-            y = [
-                self.player_position_history[product][xi[0]]
-                for xi in self.markers[product]
-            ]
-            colors = [COLORS[xi[1]] for xi in self.markers[product]]
-            if x:
-                plt.scatter(x, y, c=colors, marker="o", linestyle="None")
         plt.title("Position")
         plt.legend()
-        plt.show()
+        plt.savefig("plots/position.png")
+
+        # Plot the mid price per product
+        for product in PRODUCTS:
+            plt.figure(dpi=1200)
+
+            mid_price = self.df[
+                (self.df["timestamp"].isin(self.timestamps))
+                & (self.df["product"] == product)
+            ].mid_price.values
+            plt.plot(self.timestamps, mid_price, label=product, linewidth=0.5)
+
+            x = [xi[0] * 100 for xi in self.markers[product]]
+            y = [mid_price[xi[0]] for xi in self.markers[product]]
+            colors = [COLORS[xi[1]] for xi in self.markers[product]]
+            if x:
+                plt.scatter(x, y, c=colors)
+            plt.legend()
+            plt.savefig(f"plots/{product}.png")
 
 
 @click.command()
