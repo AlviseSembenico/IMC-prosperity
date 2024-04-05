@@ -119,7 +119,7 @@ class MarketSimulator:
                 )
             for product, marker in markers.items():
                 if marker is not None:
-                    self.markers[product].append((i, marker))
+                    self.markers[product].append((i, *marker))
             self.timestamps.append(i * 100)
         self.plot()
 
@@ -197,9 +197,9 @@ class MarketSimulator:
                 & (self.df["product"] == product)
             ]
             mid_price = df.mid_price.values
-            plt.plot(
-                np.array(self.timestamps) / 100, mid_price, label=product, linewidth=0.5
-            )
+            # plt.plot(
+            #     np.array(self.timestamps) / 100, mid_price, label=product, linewidth=0.5
+            # )
             plt.plot(
                 np.array(self.timestamps) / 100,
                 df.bid_price_1,
@@ -214,7 +214,7 @@ class MarketSimulator:
             )
 
             x = [xi[0] for xi in self.markers[product]]
-            y = [mid_price[xi[0]] for xi in self.markers[product]]
+            y = [xi[2] for xi in self.markers[product]]
             colors = [COLORS[xi[1]] for xi in self.markers[product]]
             if x:
                 plt.scatter(x, y, c=colors)
