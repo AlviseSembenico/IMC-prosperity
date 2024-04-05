@@ -107,14 +107,17 @@ def starfruits_policy(
         # sell only after having bought
         # if previous_info["marker"] and previous_info["marker"][-1] == 1:
 
-        if state.position[product] > base_position:
+        if state.position.get(product, 0) > base_position:
             if "last_purchase" not in previous_info.get("generated", {}):
                 # sell until we reach the base position
                 orders.append(
                     Order(
                         product,
                         best_bid,
-                        max(-best_bid_amount, base_position - state.position[product]),
+                        max(
+                            -best_bid_amount,
+                            base_position - state.position.get(product, 0),
+                        ),
                     )
                 )
             elif best_bid > previous_info["generated"]["last_purchase"]:
@@ -122,7 +125,10 @@ def starfruits_policy(
                     Order(
                         product,
                         best_bid,
-                        max(-best_bid_amount, base_position - state.position[product]),
+                        max(
+                            -best_bid_amount,
+                            base_position - state.position.get(product, 0),
+                        ),
                     )
                 )
 
@@ -154,7 +160,6 @@ class Trader:
             previous_info = state.traderData
         if previous_info is None:
             previous_info = generate_empty_info(state.order_depths.keys())
-
         # Orders to be placed on exchange matching engine
         result = {}
         markers = {}
