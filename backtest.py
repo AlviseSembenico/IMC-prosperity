@@ -1,9 +1,10 @@
 import logging
-import os
+import sys
 from typing import Dict
 
 import click
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -12,9 +13,8 @@ from trader import Trader, set_debug
 
 logger = logging.getLogger(__name__)
 set_debug(True)
-
+COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 PRODUCTS = ["AMETHYSTS", "STARFRUIT"]
-
 LIMIT_POSITIONS = {
     "AMETHYSTS": 20,
     "STARFRUIT": 20,
@@ -29,6 +29,8 @@ class MarketSimulator:
     player_cash: int = 0
     player_pnl: list[int]
     player_position_history: Dict[str, list[int]]
+    markers: Dict[str, list[tuple[int, int]]]
+    timestamps: list[int]
 
     def __init__(self, day: int) -> None:
         self.df = pd.read_csv(f"data/day{day}.csv", delimiter=";")
@@ -41,6 +43,8 @@ class MarketSimulator:
         self.player_cash = 0
         self.player_pnl = [0]
         self.player_position_history = {product: [0] for product in PRODUCTS}
+        self.markers = {product: [] for product in PRODUCTS}
+        self.timestamps = []
 
     def get_order_depth(
         self, df: pd.DataFrame, timestamp: int
@@ -86,10 +90,9 @@ class MarketSimulator:
 
         return order_depth
 
-    def run(self):
-        trader_data = ""
-        for i in tqdm(range(self.num_days // 1)):
-            row = self.df[self.df.timestamp == i * 100]
+    def run(self, max_steps: int):
+        trader_data = None
+        for i in tqdm(range(min(self.num_days // 1, max_steps))):
             order_depth = self.get_order_depth(self.df, i * 100)
 
             state = TradingState(
@@ -104,7 +107,7 @@ class MarketSimulator:
                 observations=None,
             )
 
-            orders, conversions, trader_data = self.trader.run(state)
+            orders, conversions, trader_data, markers = self.trader.run(state)
             self.compute_trades(orders, state)
             self.player_pnl.append(self.compute_pnl(state))
 
@@ -113,6 +116,10 @@ class MarketSimulator:
                 self.player_position_history[product].append(
                     self.player_position[product]
                 )
+            for product, marker in markers.items():
+                if marker is not None:
+                    self.markers[product].append((i, *marker))
+            self.timestamps.append(i * 100)
         self.plot()
 
     def compute_pnl(self, state: TradingState):
@@ -167,25 +174,59 @@ class MarketSimulator:
 
     def plot(self):
         # Plot the PnL
-        plt.figure()
-        plt.plot(self.player_pnl)
+        plt.figure(dpi=1200)
+        plt.plot(self.player_pnl, linewidth=0.5)
         plt.title("PnL")
-        plt.show()
+        plt.savefig("plots/pnl.png")
 
         # Plot the position
-        plt.figure()
+        plt.figure(dpi=1200)
         for product in PRODUCTS:
             plt.plot(self.player_position_history[product], label=product)
         plt.title("Position")
         plt.legend()
-        plt.show()
+        plt.savefig("plots/position.png")
+
+        # Plot the mid price per product
+        for product in PRODUCTS:
+            plt.figure(dpi=1200)
+
+            df = self.df[
+                (self.df["timestamp"].isin(self.timestamps))
+                & (self.df["product"] == product)
+            ]
+            mid_price = df.mid_price.values
+            # plt.plot(
+            #     np.array(self.timestamps) / 100, mid_price, label=product, linewidth=0.5
+            # )
+            plt.plot(
+                np.array(self.timestamps) / 100,
+                df.bid_price_1,
+                label="Bid Price",
+                linewidth=0.5,
+            )
+            plt.plot(
+                np.array(self.timestamps) / 100,
+                df.ask_price_1,
+                label="Ask Price",
+                linewidth=0.5,
+            )
+
+            x = [xi[0] for xi in self.markers[product]]
+            y = [xi[2] for xi in self.markers[product]]
+            colors = [COLORS[xi[1]] for xi in self.markers[product]]
+            if x:
+                plt.scatter(x, y, c=colors)
+            plt.legend()
+            plt.savefig(f"plots/{product}.png")
 
 
 @click.command()
 @click.option("--day", default=0, help="Day to backtest")
-def main(day: int):
+@click.option("--steps", default=sys.maxsize, help="Number of steps to test against")
+def main(day: int, steps: int):
     simulator = MarketSimulator(day)
-    simulator.run()
+    simulator.run(steps)
 
 
 if __name__ == "__main__":
