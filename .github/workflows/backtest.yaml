@@ -8,7 +8,7 @@ on:
 jobs:
   run_backtest:
     permissions:
-      pull-requests: write-all
+      pull-requests: write
     name: Backtest current strategy
     runs-on: "windows-latest"
     defaults:
