@@ -167,8 +167,8 @@ class Trader:
             )
             result[product] = orders
             markers[product] = marker
-            previous_info[product]["generated"] = info | previous_info[product].get(
-                "generated", {}
+            previous_info[product]["generated"] = (
+                previous_info[product].get("generated", {}) | info
             )
             previous_info[product]["last_price"].append(compute_last_price(order_depth))
             previous_info[product]["last_ask"].append(
