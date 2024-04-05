@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 set_debug(True)
 COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 PRODUCTS = ["AMETHYSTS", "STARFRUIT"]
-PRODUCTS = ["STARFRUIT"]
 LIMIT_POSITIONS = {
     "AMETHYSTS": 20,
     "STARFRUIT": 20,
