@@ -29,7 +29,6 @@ jobs:
           environment-file: environment.yml
           python-version: 3.12
           auto-activate-base: false
-          use-only-tar-bz2: true
       - run: |
           conda info
           conda list
