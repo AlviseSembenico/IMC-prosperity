@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from typing import Dict
 
 import click
@@ -88,9 +89,9 @@ class MarketSimulator:
 
         return order_depth
 
-    def run(self):
+    def run(self, max_steps: int):
         trader_data = ""
-        for i in tqdm(range(self.num_days // 10)):
+        for i in tqdm(range(min(self.num_days // 1, max_steps))):
             row = self.df[self.df.timestamp == i * 100]
             order_depth = self.get_order_depth(self.df, i * 100)
 
@@ -172,8 +173,8 @@ class MarketSimulator:
 
     def plot(self):
         # Plot the PnL
-        plt.figure()
-        plt.plot(self.player_pnl)
+        plt.figure(dpi=600)
+        plt.plot(self.player_pnl, linewidth=0.5)
         plt.title("PnL")
         plt.show()
 
@@ -196,9 +197,10 @@ class MarketSimulator:
 
 @click.command()
 @click.option("--day", default=0, help="Day to backtest")
-def main(day: int):
+@click.option("--steps", default=sys.maxsize, help="Number of steps to test against")
+def main(day: int, steps: int):
     simulator = MarketSimulator(day)
-    simulator.run()
+    simulator.run(steps)
 
 
 if __name__ == "__main__":

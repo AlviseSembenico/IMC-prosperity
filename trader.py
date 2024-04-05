@@ -69,17 +69,18 @@ def starfruits_policy(
         if int(best_ask) < acceptable_price:
             orders.append(Order(product, best_ask, -best_ask_amount))
 
-        # current_price = compute_last_price(order_depth)
-        # if len(previous_info["last_price"]) >= window_size:
-        #     current_price_change = current_price - previous_info["last_price"][-1]
-        #     last_price_changes = np.abs(
-        #         np.diff(previous_info["last_price"][-window_size:])
-        #     )
-        #     if (
-        #         current_price < previous_info["last_price"][-1]
-        #         and abs(current_price_change) > np.mean(last_price_changes) * 1
-        #     ):
-        #         orders.append(Order(product, best_ask, -best_ask_amount))
+        current_price = compute_last_price(order_depth)
+        if len(previous_info["last_price"]) >= window_size:
+            current_price_change = current_price - previous_info["last_price"][-1]
+            last_price_changes = np.abs(
+                np.diff(previous_info["last_price"][-window_size:])
+            )
+            if (
+                current_price < previous_info["last_price"][-1]
+                and abs(current_price_change) > np.mean(last_price_changes) * 1
+            ):
+                marker = 1
+                # orders.append(Order(product, best_ask, -best_ask_amount))
 
     if len(order_depth.buy_orders) != 0:
         best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
