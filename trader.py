@@ -61,76 +61,79 @@ def amethysts_policy(state: TradingState, order_depth: OrderDepth, previous_info
     return orders, info, marker
 
 
+def forecast_bid(last_bids, n=20):
+    x_bid = np.array(
+        [
+            0.08318381,
+            0.08184419,
+            0.052289,
+            0.06817514,
+            0.0789269,
+            0.11973523,
+            0.12258035,
+            0.18677331,
+            0.2070171,
+        ]
+    )
+    b_bid = -2.7332801915326854
+    x = last_bids[-9:].tolist()
+    res = []
+    for i in range(n):
+
+        value = np.dot(x_bid, np.array(x) + b_bid)
+        res.append(value)
+        x.pop(0)
+        x.append(int(value))
+    return res
+
+
+def forecast_ask(last_asks, n=20):
+    x_ask = np.array(
+        [
+            0.07261305,
+            0.08289478,
+            0.04351741,
+            0.08481505,
+            0.09199201,
+            0.10752486,
+            0.13582492,
+            0.18416474,
+            0.1969992,
+        ]
+    )
+    b_ask = -1.8446892638021382
+    x = last_asks[-9:].tolist()
+    res = []
+    for i in range(n):
+
+        value = np.dot(x_ask, np.array(x) + b_ask)
+        res.append(value)
+        x.pop(0)
+        x.append(int(value))
+    return res
+
+
 def starfruits_policy(
     state: TradingState, order_depth: OrderDepth, previous_info: dict
 ):
     product = "STARFRUIT"
     orders = []
-    acceptable_price = 0
     info = {}
     window_size = 20
     marker = None
     base_position = -15
 
-    if len(order_depth.sell_orders) != 0:
-        best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
+    # run regression
 
-        if len(previous_info["last_ask"]) >= window_size:
-            # detect down spikes in ask price
-            current_price_change = best_ask - previous_info["last_ask"][-1]
-            last_price_changes = np.abs(
-                np.diff(previous_info["last_ask"][-window_size:])
-            )
+    best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
+    best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
 
-            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
-            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
-            spread = mean_last_bid - mean_last_ask
-            best_ask_n = (mean_last_bid - best_ask) / spread
-            if (
-                best_ask < previous_info["last_ask"][-1]
-                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
-                and best_ask_n < 0.3
-            ):
-                marker = (1, best_ask)
-                orders.append(Order(product, best_ask, -best_ask_amount))
-                info["last_purchase"] = best_ask
+    forecasted_mid_price = len(previous_info["last_ask"]) * -0.02382699 + 5004.11732383
 
-    if len(order_depth.buy_orders) != 0 and marker is None:
-        best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
-
-        # if len(previous_info["last_bid"]) >= window_size:
-        #     current_price_change = best_bid - previous_info["last_bid"][-1]
-        #     last_price_changes = np.abs(
-        #         np.diff(previous_info["last_price"][-window_size:])
-        #     )
-        # if int(best_bid) > acceptable_price:
-        # sell only after having bought
-        # if previous_info["marker"] and previous_info["marker"][-1] == 1:
-
-        if state.position.get(product, 0) > base_position:
-            if "last_purchase" not in previous_info.get("generated", {}):
-                # sell until we reach the base position
-                orders.append(
-                    Order(
-                        product,
-                        best_bid,
-                        max(
-                            -best_bid_amount,
-                            base_position - state.position.get(product, 0),
-                        ),
-                    )
-                )
-            elif best_bid > previous_info["generated"]["last_purchase"]:
-                orders.append(
-                    Order(
-                        product,
-                        best_bid,
-                        max(
-                            -best_bid_amount,
-                            base_position - state.position.get(product, 0),
-                        ),
-                    )
-                )
+    if best_ask < forecasted_mid_price:
+        orders.append(Order(product, best_ask, -best_ask_amount))
+    if best_bid > forecasted_mid_price:
+        orders.append(Order(product, best_bid, -best_bid_amount))
 
     return orders, info, marker
 
