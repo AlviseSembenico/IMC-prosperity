@@ -146,7 +146,6 @@ def generate_empty_info(products):
 
 
 class Trader:
-
     def run(self, state: TradingState):
         if not DEBUG:
             print("State: " + str(state))
