@@ -1,5 +1,7 @@
 import logging
+import os
 import sys
+from pathlib import Path
 from typing import Dict
 
 import click
@@ -31,10 +33,14 @@ class MarketSimulator:
     player_position_history: Dict[str, list[int]]
     markers: Dict[str, list[tuple[int, int]]]
     timestamps: list[int]
+    day: int
+    round: int
 
-    def __init__(self, day: int) -> None:
-        self.df = pd.read_csv(f"data/day{day}.csv", delimiter=";")
+    def __init__(self, round: int, day: int) -> None:
+        self.df = pd.read_csv(f"data/round{round}/{day}.csv", delimiter=";")
         self._reset()
+        self.round = round
+        self.day = day
 
     def _reset(self):
         self.trader = Trader()
@@ -182,12 +188,16 @@ class MarketSimulator:
                 )
 
     def plot(self):
+        base_folder = f"plots/round{self.round}/day{self.day}"
+        # make sure path exists
+        Path(base_folder).mkdir(parents=True, exist_ok=True)
+
         # Plot the PnL per product
         for product in PRODUCTS:
             plt.figure(dpi=1200)
             plt.plot(self.player_pnl[product], linewidth=0.5)
             plt.title(f"PnL {product}")
-            plt.savefig(f"plots/pnl_{product}.png")
+            plt.savefig(f"{base_folder}/pnl_{product}.png")
 
         # Plot the total
         plt.figure(dpi=1200)
@@ -196,7 +206,7 @@ class MarketSimulator:
         )
         plt.plot(total_pnl, linewidth=0.5)
         plt.title("PnL")
-        plt.savefig("plots/pnl.png")
+        plt.savefig(f"{base_folder}/pnl.png")
 
         # Plot the position
         plt.figure(dpi=1200)
@@ -204,7 +214,7 @@ class MarketSimulator:
             plt.plot(self.player_position_history[product], label=product)
         plt.title("Position")
         plt.legend()
-        plt.savefig("plots/position.png")
+        plt.savefig(f"{base_folder}/position.png")
 
         # Plot the mid price per product
         for product in PRODUCTS:
@@ -237,15 +247,17 @@ class MarketSimulator:
             if x:
                 plt.scatter(x, y, c=colors)
             plt.legend()
-            plt.savefig(f"plots/{product}.png")
+            plt.savefig(f"{base_folder}/{product}.png")
 
 
 @click.command()
-@click.option("--day", default=0, help="Day to backtest")
+@click.option("--round", default=1, help="Round to backtest")
 @click.option("--steps", default=sys.maxsize, help="Number of steps to test against")
-def main(day: int, steps: int):
-    simulator = MarketSimulator(day)
-    simulator.run(steps)
+def main(round: int, steps: int):
+    for file in os.listdir(f"data/round{round}"):
+        day = file.split(".")[0]
+        simulator = MarketSimulator(round, day)
+        simulator.run(steps)
 
 
 if __name__ == "__main__":
