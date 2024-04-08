@@ -26,8 +26,8 @@ class MarketSimulator:
     trader: Trader
     num_days: int
     player_position: Dict[str, int]
-    player_cash: int = 0
-    player_pnl: list[int]
+    player_cash: Dict[str, list[int]]
+    player_pnl: Dict[str, list[int]]
     player_position_history: Dict[str, list[int]]
     markers: Dict[str, list[tuple[int, int]]]
     timestamps: list[int]
@@ -40,8 +40,8 @@ class MarketSimulator:
         self.trader = Trader()
         self.num_days = self.df.timestamp.max() // 100
         self.player_position = {product: 0 for product in PRODUCTS}
-        self.player_cash = 0
-        self.player_pnl = [0]
+        self.player_cash = {product: [0] for product in PRODUCTS}
+        self.player_pnl = {product: [0] for product in PRODUCTS}
         self.player_position_history = {product: [0] for product in PRODUCTS}
         self.markers = {product: [] for product in PRODUCTS}
         self.timestamps = []
@@ -109,35 +109,42 @@ class MarketSimulator:
 
             orders, conversions, trader_data, markers = self.trader.run(state)
             self.compute_trades(orders, state)
-            self.player_pnl.append(self.compute_pnl(state))
 
             # add the position to the history
             for product in PRODUCTS:
                 self.player_position_history[product].append(
                     self.player_position[product]
                 )
+                self.player_pnl[product].append(self.compute_pnl(state, product))
             for product, marker in markers.items():
                 if marker is not None:
                     self.markers[product].append((i, *marker))
             self.timestamps.append(i * 100)
+        self.print()
         self.plot()
 
-    def compute_pnl(self, state: TradingState):
+    def print(self):
+        for product in PRODUCTS:
+            print(f"Final PnL {product}: {self.player_pnl[product][-1]}")
+        print(
+            f"Final PnL: {sum([self.player_pnl[product][-1] for product in PRODUCTS])}"
+        )
+
+    def compute_pnl(self, state: TradingState, product: str):
         """Compute the PnL of the player"""
-        pnl = 0
-        for product, position in self.player_position.items():
-            # TODO: this breaks if there is no buy or sell orders
-            mid_price = (
-                list(state.order_depths[product].sell_orders.items())[0][0]
-                + list(state.order_depths[product].buy_orders.items())[0][0]
-            ) / 2
-            pnl += mid_price * position
-        return self.player_cash + pnl
+        position = self.player_position[product]
+        # TODO: this breaks if there is no buy or sell orders
+        mid_price = (
+            list(state.order_depths[product].sell_orders.items())[0][0]
+            + list(state.order_depths[product].buy_orders.items())[0][0]
+        ) / 2
+        return self.player_cash[product][-1] + mid_price * position
 
     def compute_trades(self, order, state: TradingState):
         """Computes the trades based on the orders and the state of the market.
         Updates the player's position
         """
+        # TODO: add multi order trade
         for product, orders in order.items():
             for order in orders:
                 if order.quantity > 0:
@@ -170,12 +177,24 @@ class MarketSimulator:
                     )
 
                 self.player_position[product] += max_tradable
-                self.player_cash -= order.price * max_tradable
+                self.player_cash[product].append(
+                    self.player_cash[product][-1] - order.price * max_tradable
+                )
 
     def plot(self):
-        # Plot the PnL
+        # Plot the PnL per product
+        for product in PRODUCTS:
+            plt.figure(dpi=1200)
+            plt.plot(self.player_pnl[product], linewidth=0.5)
+            plt.title(f"PnL {product}")
+            plt.savefig(f"plots/pnl_{product}.png")
+
+        # Plot the total
         plt.figure(dpi=1200)
-        plt.plot(self.player_pnl, linewidth=0.5)
+        total_pnl = np.sum(
+            [np.array(self.player_pnl[product]) for product in PRODUCTS], axis=0
+        )
+        plt.plot(total_pnl, linewidth=0.5)
         plt.title("PnL")
         plt.savefig("plots/pnl.png")
 
