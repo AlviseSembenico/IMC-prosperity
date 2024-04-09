@@ -90,7 +90,7 @@ class TradingEnv(gym.Env):
                 low=self._idx, high=len(self.df) - self.max_episode_duration - self._idx
             )
         self.market_simulator._reset()
-        return self._get_obs()
+        return self._get_obs(), {}
 
     def render(self):
         pass
@@ -98,14 +98,16 @@ class TradingEnv(gym.Env):
     def _take_action(self, position):
         if position != self._position:
             # TODO: create a trade object
+            current_position = list(self.market_simulator.player_position.values())[-1]
+            self.market_simulator.player_position[]
             self.market_simulator.compute_trades()
 
     def reward_function(self):
         return list(self.market_simulator.player_pnl.values())[-1]
 
-    def step(self, position_index=None):
+    def step(self, position_index):
         if position_index is not None:
-            self._take_action(self.positions[position_index])
+            self._take_action(position_index)
         self.market_simulator.store_position()
         # TODO: update to multiple stocks
         self._position = list(self.market_simulator.player_position.values())[-1]
