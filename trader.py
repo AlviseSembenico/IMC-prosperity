@@ -66,13 +66,16 @@ def starfruits_policy(
 ):
     product = "STARFRUIT"
     orders = []
-    acceptable_price = 0
+    spread_position = 5
     info = {}
     window_size = 20
     marker = None
-    base_position = 0
 
-    if len(order_depth.sell_orders) != 0:
+    # Buy scenario
+    if (
+        len(order_depth.sell_orders) != 0
+        and state.position.get(product, 0) < spread_position
+    ):
         best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
 
         if len(previous_info["last_ask"]) >= window_size:
@@ -95,7 +98,11 @@ def starfruits_policy(
                 orders.append(Order(product, best_ask, -best_ask_amount))
                 info["last_purchase"] = best_ask
 
-    if len(order_depth.buy_orders) != 0 and marker is None:
+    # Sell scenario
+    if (
+        len(order_depth.buy_orders) != 0
+        and state.position.get(product, 0) > -spread_position
+    ):
         best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
 
         if len(previous_info["last_bid"]) >= window_size:
@@ -116,7 +123,7 @@ def starfruits_policy(
             ):
                 marker = (2, best_bid)
                 orders.append(Order(product, best_bid, -best_bid_amount * 2))
-                info["last_sell"] = best_ask
+                info["last_sell"] = best_bid
 
     return orders, info, marker
 
