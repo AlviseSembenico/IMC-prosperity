@@ -153,6 +153,10 @@ class MarketSimulator:
         ) / 2
         return self.player_cash[product][-1] + mid_price * position
 
+    def perform_trade(self, product, amount, price):
+        self.player_position[product] += amount
+        self.player_cash[product].append(self.player_cash[product][-1] - price * amount)
+
     def compute_trades(self, order, state: TradingState):
         """Computes the trades based on the orders and the state of the market.
         Updates the player's position
@@ -161,38 +165,24 @@ class MarketSimulator:
         for product, orders in order.items():
             for order in orders:
                 if order.quantity > 0:
-                    price, max_amount = list(
-                        state.order_depths[product].sell_orders.items()
-                    )[0]
+                    max_tradable = (
+                        LIMIT_POSITIONS[product] - self.player_position[product]
+                    )
+                    quantity_left = order.quantity
+                    for ask_price, ask_amount in state.order_depths[
+                        product
+                    ].sell_orders.items():
+                        if ask_price <= order.price:
+                            to_trade = min(max_tradable, quantity_left)
+                            # TODO: perform trade
+                            max_tradable -= to_trade
+                            quantity_left -= to_trade
+                        if quantity_left * max_tradable == 0:
+                            break
                 else:
-                    price, max_amount = list(
-                        state.order_depths[product].buy_orders.items()
-                    )[0]
-                max_amount = -max_amount
-                assert (
-                    order.price == price
-                ), f"order.price = {order.price} while it should be {price}"
-                # TODO: this works for only one price order
-                if order.quantity <= max_amount:
-                    logger.info(
-                        f"order.quantity = {order.quantity} while it should be <= {max_amount}"
+                    max_tradable = (
+                        -LIMIT_POSITIONS[product] - self.player_position[product]
                     )
-
-                if self.player_position[product] + order.quantity > 0:
-                    max_tradable = min(
-                        order.quantity,
-                        LIMIT_POSITIONS[product] - self.player_position[product],
-                    )
-                else:
-                    max_tradable = max(
-                        order.quantity,
-                        -LIMIT_POSITIONS[product] - self.player_position[product],
-                    )
-
-                self.player_position[product] += max_tradable
-                self.player_cash[product].append(
-                    self.player_cash[product][-1] - order.price * max_tradable
-                )
 
     def plot(self):
         base_folder = f"plots/round{self.round}/day{self.day}"
