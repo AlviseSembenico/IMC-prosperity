@@ -173,16 +173,27 @@ class MarketSimulator:
                         product
                     ].sell_orders.items():
                         if ask_price <= order.price:
-                            to_trade = min(max_tradable, quantity_left)
-                            # TODO: perform trade
+                            to_trade = min(max_tradable, quantity_left, -ask_amount)
+                            self.perform_trade(product, to_trade, ask_price)
                             max_tradable -= to_trade
                             quantity_left -= to_trade
                         if quantity_left * max_tradable == 0:
                             break
                 else:
-                    max_tradable = (
-                        -LIMIT_POSITIONS[product] - self.player_position[product]
+                    max_tradable = -(
+                        LIMIT_POSITIONS[product] + self.player_position[product]
                     )
+                    quantity_left = order.quantity
+                    for bid_price, bid_amount in state.order_depths[
+                        product
+                    ].buy_orders.items():
+                        if bid_price >= order.price:
+                            to_trade = max(max_tradable, quantity_left, -bid_amount)
+                            self.perform_trade(product, to_trade, bid_price)
+                            max_tradable -= to_trade
+                            quantity_left -= to_trade
+                        if quantity_left * max_tradable == 0:
+                            break
 
     def plot(self):
         base_folder = f"plots/round{self.round}/day{self.day}"
@@ -221,10 +232,6 @@ class MarketSimulator:
                 (self.df["timestamp"].isin(self.timestamps))
                 & (self.df["product"] == product)
             ]
-            mid_price = df.mid_price.values
-            # plt.plot(
-            #     np.array(self.timestamps) / 100, mid_price, label=product, linewidth=0.5
-            # )
             plt.plot(
                 np.array(self.timestamps) / 100,
                 df.bid_price_1,
