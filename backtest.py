@@ -96,36 +96,43 @@ class MarketSimulator:
 
         return order_depth
 
+    def get_state(self, i: int, trader_data=None) -> TradingState:
+        order_depth = self.get_order_depth(self.df, i * 100)
+
+        state = TradingState(
+            traderData=trader_data,
+            timestamp=i * 100,
+            listings={},
+            order_depths=order_depth,
+            own_trades={},
+            market_trades={},
+            position=self.player_position,
+            # not supported yet
+            observations=None,
+        )
+        return state
+
+    def iter(self, i: int, trader_data=None):
+        state = self.get_state(i, trader_data)
+        orders, conversions, trader_data, markers = self.trader.run(state)
+        self.compute_trades(orders, state)
+        self.store_position(state, i, markers)
+        return orders, conversions, trader_data, markers
+
+    def store_position(self, state: TradingState, i: int, markers: Dict[str, tuple]):
+        # add the position to the history
+        for product in PRODUCTS:
+            self.player_position_history[product].append(self.player_position[product])
+            self.player_pnl[product].append(self.compute_pnl(state, product))
+        for product, marker in markers.items():
+            if marker is not None:
+                self.markers[product].append((i, *marker))
+        self.timestamps.append(i * 100)
+
     def run(self, max_steps: int):
         trader_data = None
         for i in tqdm(range(min(self.num_days // 1, max_steps))):
-            order_depth = self.get_order_depth(self.df, i * 100)
-
-            state = TradingState(
-                traderData=trader_data,
-                timestamp=i * 100,
-                listings={},
-                order_depths=order_depth,
-                own_trades={},
-                market_trades={},
-                position=self.player_position,
-                # not supported yet
-                observations=None,
-            )
-
-            orders, conversions, trader_data, markers = self.trader.run(state)
-            self.compute_trades(orders, state)
-
-            # add the position to the history
-            for product in PRODUCTS:
-                self.player_position_history[product].append(
-                    self.player_position[product]
-                )
-                self.player_pnl[product].append(self.compute_pnl(state, product))
-            for product, marker in markers.items():
-                if marker is not None:
-                    self.markers[product].append((i, *marker))
-            self.timestamps.append(i * 100)
+            orders, conversions, trader_data, markers = self.iter(i, trader_data)
         self.print()
         self.plot()
 
