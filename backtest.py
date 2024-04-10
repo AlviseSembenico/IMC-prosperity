@@ -253,9 +253,12 @@ class MarketSimulator:
 @click.command()
 @click.option("--round", default=1, help="Round to backtest")
 @click.option("--steps", default=sys.maxsize, help="Number of steps to test against")
-def main(round: int, steps: int):
+@click.option("--day", default=0, help="The day you want to test against")
+def main(round: int, steps: int, day: int):
     for file in os.listdir(f"data/round{round}"):
-        day = file.split(".")[0]
+        file_day = file.split(".")[0]
+        if int(file_day) != day:
+            continue
         simulator = MarketSimulator(round, day)
         simulator.run(steps)
 
