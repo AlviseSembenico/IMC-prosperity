@@ -168,14 +168,28 @@ class NormalDistribution:
 
 Product = str
 
-HISTORY_LIMIT = 30
+HISTORY_LIMIT = 8
+
+EPS = 1e-8
 
 
 @dataclass
 class OrderCandidate:
     price: int
     volume: int
-    cdf: float
+    buy_pdf: float
+    sell_pdf: float
+    goodness: float = 0.0
+
+    def __post_init__(self):
+        # if self.volume > 0:
+        #     self.goodness = self.sell_pdf / max(EPS, self.buy_pdf)
+        # else:
+        #     self.goodness = self.buy_pdf / max(EPS, self.sell_pdf)
+
+        self.goodness = self.sell_pdf - self.buy_pdf
+        if self.volume < 0:
+            self.goodness = -self.goodness
 
 
 @dataclass
@@ -209,7 +223,8 @@ class History:
 class Trader:
     def __init__(self):
         self.policies = {
-            "AMETHYSTS": self.policy,
+            # "AMETHYSTS": self.policy,
+            "AMETHYSTS": self.amethysts_policy,
             "STARFRUIT": self.policy,
         }
 
@@ -220,14 +235,62 @@ class Trader:
     def none_policy(self, history: History, symbol: Product):
         return []
 
+    def amethysts_policy(self, history: History, symbol: Product):
+        if history.len() < self.warmup:
+            return []
+
+        orders = []
+
+        # Calculate a weighted average of the past prices
+        all_samples = []
+        for dp in history.data_points:
+            for price, volume in dp.order_depth.buy_orders.items():
+                all_samples.append(Sample(value=price, weight=volume))
+
+            for price, volume in dp.order_depth.sell_orders.items():
+                all_samples.append(Sample(value=price, weight=volume))
+
+        prices = np.array([sample.value for sample in all_samples])
+        weights = np.abs(np.array([sample.weight for sample in all_samples]))
+
+        # Calculate the weighted average
+        acceptable_price = int(np.round(np.average(prices, weights=weights)))
+
+        current = history.data_points[-1]
+        current_position = current.position
+
+        if len(current.order_depth.sell_orders) != 0:
+            best_ask, best_ask_amount = list(current.order_depth.sell_orders.items())[0]
+            if int(best_ask) < acceptable_price:
+                orders.append(Order(symbol, best_ask, -best_ask_amount))
+
+            # # set portfolio to 0 if price is equal to acceptable price
+            if int(best_ask) == acceptable_price and current_position < 0:
+                # sell all
+                orders.append(Order(symbol, acceptable_price, -current_position))
+
+        if len(current.order_depth.buy_orders) != 0:
+            best_bid, best_bid_amount = list(current.order_depth.buy_orders.items())[0]
+            if int(best_bid) > acceptable_price:
+                orders.append(Order(symbol, best_bid, -best_bid_amount))
+            # set portfolio to 0 if price is equal to acceptable price
+            if int(best_bid) == acceptable_price and current_position > 0:
+                # discard the short position
+                orders.append(Order(symbol, acceptable_price, -current_position))
+
+        return orders
+
     def policy(self, history: History, symbol: Product):
+        current = history.data_points[-1]
+        # print(current.timestamp, symbol)
+
         if history.len() < self.warmup:
             return []
         # Fit a distribution to the historical orders
         trade_samples = []
         buy_samples = []
         sell_samples = []
-        past_cdfs = []
+        past_goodnesses = []
         for dp in history.data_points[:-1]:
             for ot in dp.own_trades:
                 trade_samples.append(Sample(value=ot.price, weight=ot.quantity))
@@ -242,7 +305,7 @@ class Trader:
                 sell_samples.append(Sample(value=price, weight=volume))
 
             for order_candidate in dp.best_order_candidates:
-                past_cdfs.append(order_candidate.cdf)
+                past_goodnesses.append(order_candidate.goodness)
 
         # trading_distribution = NormalDistribution.from_samples(
         #     trade_samples
@@ -252,67 +315,91 @@ class Trader:
             sell_samples
         ).to_normal_dist()
 
-        current = history.data_points[-1]
-
         # Calculate the desired orders
         # At a time we should only be buying or selling
         # Check which is better at this time
+        # TODO: Also in the next step should we take an opposing action?
 
         buy_candidates = []
         sell_candidates = []
 
-        # __import__('pdb').set_trace()
         for price, volume in current.order_depth.buy_orders.items():
-            # What's the probability of this buy price being
-            # high given the sell distribution
-            pdf = sell_distribution.pdf(price)
-            # cdf = 1 - sell_distribution.cdf(price)
+            buy_pdf = buy_distribution.pdf(price)
+            sell_pdf = sell_distribution.pdf(price)
+
             # We can "sell" this order
-            buy_candidates.append(OrderCandidate(price, volume, pdf))
+            buy_candidates.append(OrderCandidate(price, volume, buy_pdf, sell_pdf))
 
         for price, volume in current.order_depth.sell_orders.items():
-            # What's the probability of this sell price being
-            # low given the buy distribution
-            pdf = buy_distribution.pdf(price)
-            # cdf = buy_distribution.cdf(price)
+            sell_pdf = sell_distribution.pdf(price)
+            buy_pdf = buy_distribution.pdf(price)
+
             # We can "buy" this order
-            sell_candidates.append(OrderCandidate(price, volume, pdf))
+            sell_candidates.append(OrderCandidate(price, volume, buy_pdf, sell_pdf))
 
-        # Select the best candidate - this will deterimine if we buy or sell
-        best_candidate = max(buy_candidates + sell_candidates, key=lambda x: x.cdf)
+        best_buy_candidate = max(buy_candidates, key=lambda x: x.goodness)
+        best_sell_candidate = max(sell_candidates, key=lambda x: x.goodness)
 
+        # Store the best candidates
+        if best_buy_candidate.goodness > best_sell_candidate.goodness:
+            current.best_order_candidates.append(best_buy_candidate)
+        else:
+            current.best_order_candidates.append(best_sell_candidate)
 
-        current.best_order_candidates.append(best_candidate)
+        # if past_goodnesses:
+        #     cutoff = np.mean(past_goodnesses)
+        # else:
 
-        cdfs = np.array(past_cdfs)
-        if len(cdfs) == 0:
-            return []
-
-        # Check if we should act on this
-        if np.random.uniform(0.0, cdfs.max()) > (best_candidate.cdf * self.risk):
-            # print("NoBUY")
-            return []
+        cutoff = 0
 
         # TODO: right now we only act on existing orders
-        orders = []
-        if best_candidate.volume > 0:
-            # This is a buy order (volume is positive)
-            # So let's sell on this
+        if (best_buy_candidate.goodness < cutoff) and (
+            best_sell_candidate.goodness < cutoff
+        ):
+            # these are pretty bad, so don't act on this
+            ACTION = "NONE"
+        elif (best_buy_candidate.goodness > cutoff) and (
+            best_sell_candidate.goodness > cutoff
+        ):
+            # these are both pretty good, so choose one based on our current position
+            # Always trying to close our position
 
-            max_sell_volume = self.limits + current.position
-
-            sell_volume = min(max_sell_volume, best_candidate.volume)
-            orders.append(
-                Order(symbol=symbol, price=best_candidate.price, quantity=-sell_volume)
-            )
+            if current.position >= 0:
+                ACTION = "SELL"
+            else:
+                ACTION = "BUY"
+        elif best_buy_candidate.goodness > best_sell_candidate.goodness:
+            # There's a better bid order than ask, so let's sell on it
+            ACTION = "SELL"
         else:
-            # this is a sell order (volume is negative)
-            # So let's buy on this
+            # There's a better ask order than bid, so let's buy on it
+            ACTION = "BUY"
+
+        if ACTION == "NONE":
+            orders = []
+        elif ACTION == "SELL":
+            # Act on the buy order, and let's sell
+            max_sell_volume = self.limits + current.position
+            # sell_volume = min(max_sell_volume, best_buy_candidate.volume)
+            sell_volume = max_sell_volume
+            orders = [
+                Order(
+                    symbol=symbol, price=best_buy_candidate.price, quantity=-sell_volume
+                )
+            ]
+        else:
+            # Act on this sell order, and let's buy
             max_buy_volume = self.limits - current.position
-            buy_volume = min(max_buy_volume, -best_candidate.volume)
-            orders.append(
-                Order(symbol=symbol, price=best_candidate.price, quantity=buy_volume)
-            )
+            # buy_volume = min(max_buy_volume, -best_sell_candidate.volume)
+            buy_volume = max_buy_volume
+            orders = [
+                Order(
+                    symbol=symbol, price=best_sell_candidate.price, quantity=buy_volume
+                )
+            ]
+
+        # print("Submitting order:", order)
+        # __import__("pdb").set_trace()
         return orders
 
     def run(self, state: TradingState):
