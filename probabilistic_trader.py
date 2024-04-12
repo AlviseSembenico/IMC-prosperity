@@ -168,7 +168,7 @@ class NormalDistribution:
 
 Product = str
 
-HISTORY_LIMIT = 8
+HISTORY_LIMIT = 10
 
 EPS = 1e-8
 
@@ -182,11 +182,6 @@ class OrderCandidate:
     goodness: float = 0.0
 
     def __post_init__(self):
-        # if self.volume > 0:
-        #     self.goodness = self.sell_pdf / max(EPS, self.buy_pdf)
-        # else:
-        #     self.goodness = self.buy_pdf / max(EPS, self.sell_pdf)
-
         self.goodness = self.sell_pdf - self.buy_pdf
         if self.volume < 0:
             self.goodness = -self.goodness
@@ -345,10 +340,6 @@ class Trader:
             current.best_order_candidates.append(best_buy_candidate)
         else:
             current.best_order_candidates.append(best_sell_candidate)
-
-        # if past_goodnesses:
-        #     cutoff = np.mean(past_goodnesses)
-        # else:
 
         cutoff = 0
 
