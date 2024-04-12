@@ -68,62 +68,83 @@ def starfruits_policy(
     orders = []
     spread_position = 5
     info = {}
-    window_size = 20
+    window_size = 100
     marker = None
 
-    # Buy scenario
-    if (
-        len(order_depth.sell_orders) != 0
-        and state.position.get(product, 0) < spread_position
-    ):
+    from sklearn.linear_model import LinearRegression
+
+    current_price = compute_last_price(order_depth)
+    if len(previous_info["last_price"]) >= window_size:
         best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
-
-        if len(previous_info["last_ask"]) >= window_size:
-            # detect down spikes in ask price
-            current_price_change = best_ask - previous_info["last_ask"][-1]
-            last_price_changes = np.abs(
-                np.diff(previous_info["last_ask"][-window_size:])
-            )
-
-            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
-            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
-            spread = mean_last_bid - mean_last_ask
-            best_ask_n = (mean_last_bid - best_ask) / spread
-            if (
-                best_ask < previous_info["last_ask"][-1]
-                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
-                and best_ask_n < 0.3
-            ):
-                marker = (1, best_ask)
-                orders.append(Order(product, best_ask, -best_ask_amount))
-                info["last_purchase"] = best_ask
-
-    # Sell scenario
-    if (
-        len(order_depth.buy_orders) != 0
-        and state.position.get(product, 0) > -spread_position
-    ):
         best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
+        Y = np.array(previous_info["last_price"][-window_size:]).reshape(-1, 1)
+        model = LinearRegression()
+        weight = np.ones(window_size)
+        model_w = model.fit(
+            np.linspace(0, window_size, num=window_size).reshape(-1, 1), Y, weight
+        )
+        slope = model_w.coef_[0]
+        last_slopes = np.array(previous_info["generated"].get("last_slopes", []))
+        # if 'operation' not in info['generated']
+        if abs(slope) < 0.01 and all(np.abs(last_slopes[-40:]) > 0.01):
+            if current_price < Y.mean():
+                # buy
+                orders.append(Order(product, best_ask, -best_ask_amount))
+                info["operation"] = best_ask
+                marker = (0, best_ask)
+            else:
+                # sell
+                orders.append(Order(product, best_bid, -best_bid_amount))
+                info["operation"] = -best_bid
+                marker = (1, best_bid)
+        slopes = previous_info["generated"].get("last_slopes", [])
+        slopes.append(slope)
+        previous_info["generated"]["last_slopes"] = slopes
+    # if len(order_depth.sell_orders) != 0:
+    #     best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
 
-        if len(previous_info["last_bid"]) >= window_size:
-            # detect down spikes in ask price
-            current_price_change = best_bid - previous_info["last_bid"][-1]
-            last_price_changes = np.abs(
-                np.diff(previous_info["last_bid"][-window_size:])
-            )
+    #     if len(previous_info["last_ask"]) >= window_size:
+    #         # detect down spikes in ask price
+    #         current_price_change = best_ask - previous_info["last_ask"][-1]
+    #         last_price_changes = np.abs(
+    #             np.diff(previous_info["last_ask"][-window_size:])
+    #         )
 
-            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
-            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
-            spread = mean_last_bid - mean_last_ask
-            best_bid_n = (best_bid - mean_last_ask) / spread
-            if (
-                best_bid > previous_info["last_bid"][-1]
-                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
-                and best_bid_n < 0.6
-            ):
-                marker = (2, best_bid)
-                orders.append(Order(product, best_bid, -best_bid_amount * 2))
-                info["last_sell"] = best_bid
+    #         mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
+    #         mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
+    #         spread = mean_last_bid - mean_last_ask
+    #         best_ask_n = (mean_last_bid - best_ask) / spread
+    #         if (
+    #             best_ask < previous_info["last_ask"][-1]
+    #             and abs(current_price_change) > (np.mean(last_price_changes) * 2)
+    #             and best_ask_n < 0.3
+    #         ):
+    #             marker = (1, best_ask)
+    #             orders.append(Order(product, best_ask, -best_ask_amount))
+    #             info["last_purchase"] = best_ask
+
+    # if len(order_depth.buy_orders) != 0 and marker is None:
+    #     best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
+
+    #     if len(previous_info["last_bid"]) >= window_size:
+    #         # detect down spikes in ask price
+    #         current_price_change = best_bid - previous_info["last_bid"][-1]
+    #         last_price_changes = np.abs(
+    #             np.diff(previous_info["last_bid"][-window_size:])
+    #         )
+
+    #         mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
+    #         mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
+    #         spread = mean_last_bid - mean_last_ask
+    #         best_bid_n = (best_bid - mean_last_ask) / spread
+    #         if (
+    #             best_bid > previous_info["last_bid"][-1]
+    #             and abs(current_price_change) > (np.mean(last_price_changes) * 2)
+    #             and best_bid_n < 0.6
+    #         ):
+    #             marker = (2, best_bid)
+    #             orders.append(Order(product, best_bid, -best_bid_amount))
+    #             info["last_sell"] = best_ask
 
     return orders, info, marker
 
