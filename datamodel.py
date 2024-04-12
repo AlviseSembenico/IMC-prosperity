@@ -1,6 +1,7 @@
 import json
 from json import JSONEncoder
-from typing import Dict, List
+from typing import Dict, List, Optional
+from dataclasses import dataclass, asdict
 
 import jsonpickle
 
@@ -10,173 +11,87 @@ Product = str
 Position = int
 UserId = str
 ObservationValue = int
+Price = int
+Volume = int
 
 
+@dataclass
 class Listing:
-
-    def __init__(self, symbol: Symbol, product: Product, denomination: Product):
-        self.symbol = symbol
-        self.product = product
-        self.denomination = denomination
+    symbol: Symbol
+    product: Product
+    denomination: Product
 
 
+@dataclass
 class ConversionObservation:
-
-    def __init__(
-        self,
-        bidPrice: float,
-        askPrice: float,
-        transportFees: float,
-        exportTariff: float,
-        importTariff: float,
-        sunlight: float,
-        humidity: float,
-    ):
-        self.bidPrice = bidPrice
-        self.askPrice = askPrice
-        self.transportFees = transportFees
-        self.exportTariff = exportTariff
-        self.importTariff = importTariff
-        self.sunlight = sunlight
-        self.humidity = humidity
+    bidPrice: float
+    askPrice: float
+    transportFees: float
+    exportTariff: float
+    importTariff: float
+    sunlight: float
+    humidity: float
 
 
+@dataclass
 class Observation:
-
-    def __init__(
-        self,
-        plainValueObservations: Dict[Product, ObservationValue],
-        conversionObservations: Dict[Product, ConversionObservation],
-    ) -> None:
-        self.plainValueObservations = plainValueObservations
-        self.conversionObservations = conversionObservations
+    plainValueObservations: Dict[Product, ObservationValue]
+    conversionObservations: Dict[Product, ConversionObservation]
 
     def __str__(self) -> str:
-        return (
-            "(plainValueObservations: "
-            + jsonpickle.encode(self.plainValueObservations)
-            + ", conversionObservations: "
-            + jsonpickle.encode(self.conversionObservations)
-            + ")"
-        )
+        return f"(plainValueObservations: {jsonpickle.encode(self.plainValueObservations)}, conversionObservations: {jsonpickle.encode(self.conversionObservations)})"
 
 
+@dataclass
 class Order:
-
-    def __init__(self, symbol: Symbol, price: int, quantity: int) -> None:
-        self.symbol = symbol
-        self.price = price
-        self.quantity = quantity
+    symbol: Symbol
+    price: int
+    quantity: int
 
     def __str__(self) -> str:
-        return (
-            "(" + self.symbol + ", " + str(self.price) + ", " + str(self.quantity) + ")"
-        )
-
-    def __repr__(self) -> str:
-        return (
-            "(" + self.symbol + ", " + str(self.price) + ", " + str(self.quantity) + ")"
-        )
+        return f"({self.symbol}, {self.price}, {self.quantity})"
 
 
+@dataclass
 class OrderDepth:
-
-    def __init__(
-        self, buy_orders: Dict[int, int] = {}, sell_orders: Dict[int, int] = {}
-    ):
-        self.buy_orders: Dict[int, int] = buy_orders
-        self.sell_orders: Dict[int, int] = sell_orders
+    buy_orders: Dict[Price, Volume]
+    sell_orders: Dict[Price, Volume]
 
     def __repr__(self) -> str:
-        return (
-            "(buy_orders: "
-            + jsonpickle.encode(self.buy_orders)
-            + ", sell_orders: "
-            + jsonpickle.encode(self.sell_orders)
-            + ")"
-        )
+        return f"(buy_orders: {jsonpickle.encode(self.buy_orders)}, sell_orders: {jsonpickle.encode(self.sell_orders)})"
 
 
+@dataclass
 class Trade:
-
-    def __init__(
-        self,
-        symbol: Symbol,
-        price: int,
-        quantity: int,
-        buyer: UserId = None,
-        seller: UserId = None,
-        timestamp: int = 0,
-    ) -> None:
-        self.symbol = symbol
-        self.price: int = price
-        self.quantity: int = quantity
-        self.buyer = buyer
-        self.seller = seller
-        self.timestamp = timestamp
+    symbol: Symbol
+    price: int
+    quantity: int
+    buyer: Optional[UserId] = None
+    seller: Optional[UserId] = None
+    timestamp: int = 0
 
     def __str__(self) -> str:
-        return (
-            "("
-            + self.symbol
-            + ", "
-            + self.buyer
-            + " << "
-            + self.seller
-            + ", "
-            + str(self.price)
-            + ", "
-            + str(self.quantity)
-            + ", "
-            + str(self.timestamp)
-            + ")"
-        )
+        return f"({self.symbol}, {self.buyer} << {self.seller}, {self.price}, {self.quantity}, {self.timestamp})"
 
     def __repr__(self) -> str:
-        return (
-            "("
-            + self.symbol
-            + ", "
-            + self.buyer
-            + " << "
-            + self.seller
-            + ", "
-            + str(self.price)
-            + ", "
-            + str(self.quantity)
-            + ", "
-            + str(self.timestamp)
-            + ")"
-        )
+        return f"({self.symbol}, {self.buyer} << {self.seller}, {self.price}, {self.quantity}, {self.timestamp})"
 
 
+@dataclass
 class TradingState(object):
-
-    def __init__(
-        self,
-        traderData: str,
-        timestamp: Time,
-        listings: Dict[Symbol, Listing],
-        order_depths: Dict[Symbol, OrderDepth],
-        own_trades: Dict[Symbol, List[Trade]],
-        market_trades: Dict[Symbol, List[Trade]],
-        position: Dict[Product, Position],
-        observations: Observation,
-    ):
-        self.traderData = traderData
-        self.timestamp = timestamp
-        self.listings = listings
-        self.order_depths = order_depths
-        self.own_trades = own_trades
-        self.market_trades = market_trades
-        self.position = position
-        self.observations = observations
+    traderData: str
+    timestamp: Time
+    listings: Dict[Symbol, Listing]
+    order_depths: Dict[Symbol, OrderDepth]
+    own_trades: Dict[Symbol, List[Trade]]
+    market_trades: Dict[Symbol, List[Trade]]
+    position: Dict[Product, Position]
+    observations: Observation
 
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True)
+        return json.dumps(self, default=lambda o: asdict(o), sort_keys=True)
 
 
 class ProsperityEncoder(JSONEncoder):
-
     def default(self, o):
         return o.__dict__
