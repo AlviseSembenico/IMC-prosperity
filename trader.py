@@ -70,13 +70,16 @@ def starfruits_policy(
     info = {}
     window_size = 100
     marker = None
+    threshold = 0.003
 
     from sklearn.linear_model import LinearRegression
 
     current_price = compute_last_price(order_depth)
+
     if len(previous_info["last_price"]) >= window_size:
         best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
         best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
+
         Y = np.array(previous_info["last_price"][-window_size:]).reshape(-1, 1)
         model = LinearRegression()
         weight = np.ones(window_size)
@@ -86,17 +89,20 @@ def starfruits_policy(
         slope = model_w.coef_[0]
         last_slopes = np.array(previous_info["generated"].get("last_slopes", []))
         # if 'operation' not in info['generated']
-        if abs(slope) < 0.01 and all(np.abs(last_slopes[-40:]) > 0.01):
-            if current_price < Y.mean():
+        if abs(slope) < threshold and all(np.abs(last_slopes[-40:]) > threshold):
+            if last_slopes[-40:].mean() < 0:
                 # buy
+                # blue color
                 orders.append(Order(product, best_ask, -best_ask_amount))
                 info["operation"] = best_ask
-                marker = (0, best_ask)
+                marker = (1, best_ask)
             else:
                 # sell
+                # red color
                 orders.append(Order(product, best_bid, -best_bid_amount))
                 info["operation"] = -best_bid
-                marker = (1, best_bid)
+                marker = (0, best_bid)
+
         slopes = previous_info["generated"].get("last_slopes", [])
         slopes.append(slope)
         previous_info["generated"]["last_slopes"] = slopes
