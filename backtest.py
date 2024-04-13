@@ -38,13 +38,14 @@ class MarketSimulator:
 
     def __init__(self, round: int, day: int) -> None:
         self.df = pd.read_csv(f"data/round{round}/{day}.csv", delimiter=";")
+        self.df.set_index("timestamp", inplace=True)
         self._reset()
         self.round = round
         self.day = day
 
     def _reset(self):
         self.trader = Trader()
-        self.num_days = self.df.timestamp.max() // 100
+        self.num_days = self.df.index.max() // 100
         self.player_position = {product: 0 for product in PRODUCTS}
         self.player_cash = {product: [0] for product in PRODUCTS}
         self.player_pnl = {product: [0] for product in PRODUCTS}
@@ -65,7 +66,7 @@ class MarketSimulator:
         Returns:
             Dict[str, OrderDepth]: order depth for each product
         """
-        df = df[df.timestamp == timestamp]
+        df = df.loc[timestamp]
         order_depth = {}
         for product in PRODUCTS:
             product_pd = df[df["product"] == product]
@@ -227,11 +228,8 @@ class MarketSimulator:
         # Plot the mid price per product
         for product in PRODUCTS:
             plt.figure(dpi=1200)
-
-            df = self.df[
-                (self.df["timestamp"].isin(self.timestamps))
-                & (self.df["product"] == product)
-            ]
+            df = self.df.loc[self.timestamps]
+            df = df[df["product"] == product]
             plt.plot(
                 np.array(self.timestamps) / 100,
                 df.bid_price_1,
