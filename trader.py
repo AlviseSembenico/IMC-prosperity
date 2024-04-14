@@ -155,7 +155,7 @@ def starfruits_policy(
     return orders, info, marker, 0
 
 
-def orchid_policy(state: TradingState, order_depth: OrderDepth, previous_info: dict):
+def orchid_policy2(state: TradingState, order_depth: OrderDepth, previous_info: dict):
     product = "ORCHIDS"
     orders = []
     spread_position = 5
@@ -212,11 +212,12 @@ def orchid_policy(state: TradingState, order_depth: OrderDepth, previous_info: d
     return orders, info, marker, 0
 
 
-def orchid_policy2(state: TradingState, order_depth: OrderDepth, previous_info: dict):
+def orchid_policy(state: TradingState, order_depth: OrderDepth, previous_info: dict):
     orders = []
     info = {}
     marker = None
     conversion = None
+    base_position = 10
 
     product = "ORCHIDS"
     # arbitrage
@@ -240,14 +241,36 @@ def orchid_policy2(state: TradingState, order_depth: OrderDepth, previous_info: 
     best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
     best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
     print(best_bid, best_external_ask, best_ask, best_external_bid)
+
+    current_position = state.position.get(product, 0)
+
     if best_ask < best_external_bid:
         print("Arbitrage detected whoho, selling from external")
-        orders.append(Order(product, best_ask, -best_ask_amount))
+        amount = max(best_ask_amount, -current_position)
+        orders.append(Order(product, best_ask, -amount))
         conversion = best_ask_amount
-    if best_bid > best_external_ask:
+    elif best_bid > best_external_ask:
         print("Arbitrage detected whoho, buying from external")
-        orders.append(Order(product, best_bid, -best_bid_amount))
+        tot_amount = 0
+        least_price = best_bid
+        for bid, amount in order_depth.buy_orders.items():
+            if bid > best_external_ask:
+                tot_amount += amount
+                least_price = bid
+
+        orders.append(Order(product, least_price, -tot_amount))
         conversion = best_bid_amount
+    else:
+        # reset to base position
+        amount_to_get = base_position - current_position
+        if base_position < current_position:
+            if best_ask < best_external_ask:
+                # buy locally
+                orders.append(Order(product, best_ask, -amount_to_get))
+            else:
+                # buy from external
+                conversion = -amount_to_get
+        # can't be higher
 
     return orders, info, marker, conversion
 
