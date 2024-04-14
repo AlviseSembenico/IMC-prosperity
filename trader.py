@@ -155,38 +155,99 @@ def starfruits_policy(
     return orders, info, marker, 0
 
 
-def orchid_policty(state: TradingState, order_depth: OrderDepth, previous_info: dict):
+def orchid_policy(state: TradingState, order_depth: OrderDepth, previous_info: dict):
+    product = "ORCHIDS"
+    orders = []
+    spread_position = 5
+    info = {}
+    window_size = 100
+    marker = None
+    threshold = 0.003
+    if len(order_depth.sell_orders) != 0:
+        best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
+
+        if len(previous_info["last_ask"]) >= window_size:
+            # detect down spikes in ask price
+            current_price_change = best_ask - previous_info["last_ask"][-1]
+            last_price_changes = np.abs(
+                np.diff(previous_info["last_ask"][-window_size:])
+            )
+
+            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
+            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
+            spread = mean_last_bid - mean_last_ask
+            best_ask_n = (mean_last_bid - best_ask) / spread
+            if (
+                best_ask < previous_info["last_ask"][-1]
+                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
+                and best_ask_n < 0.3
+            ):
+                marker = (1, best_ask)
+                orders.append(Order(product, best_ask, -best_ask_amount))
+                info["last_purchase"] = best_ask
+
+    if len(order_depth.buy_orders) != 0 and marker is None:
+        best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
+
+        if len(previous_info["last_bid"]) >= window_size:
+            # detect down spikes in ask price
+            current_price_change = best_bid - previous_info["last_bid"][-1]
+            last_price_changes = np.abs(
+                np.diff(previous_info["last_bid"][-window_size:])
+            )
+
+            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
+            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
+            spread = mean_last_bid - mean_last_ask
+            best_bid_n = (best_bid - mean_last_ask) / spread
+            if (
+                best_bid > previous_info["last_bid"][-1]
+                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
+                and best_bid_n < 0.6
+            ):
+                marker = (2, best_bid)
+                orders.append(Order(product, best_bid, -best_bid_amount))
+                info["last_sell"] = best_ask
+
+    return orders, info, marker, 0
+
+
+def orchid_policy2(state: TradingState, order_depth: OrderDepth, previous_info: dict):
     orders = []
     info = {}
     marker = None
     conversion = None
 
-    product = "ORCHID"
+    product = "ORCHIDS"
     # arbitrage
     import_cost = state.observations.conversionObservations[product].importTariff
     export_cost = state.observations.conversionObservations[product].exportTariff
     transport_cost = state.observations.conversionObservations[product].transportFees
 
+    # bid is buying
+    # ask is selling
     best_external_bid = (
         state.observations.conversionObservations[product].bidPrice
-        + import_cost
+        + export_cost
         + transport_cost
     )
     best_external_ask = (
         state.observations.conversionObservations[product].askPrice
-        + export_cost
+        + import_cost
         + transport_cost
     )
-
+    print(state.position.get(product, 0))
     best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
     best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
-
+    print(best_bid, best_external_ask, best_ask, best_external_bid)
     if best_ask < best_external_bid:
+        print("Arbitrage detected whoho, selling from external")
         orders.append(Order(product, best_ask, -best_ask_amount))
         conversion = best_ask_amount
     if best_bid > best_external_ask:
+        print("Arbitrage detected whoho, buying from external")
         orders.append(Order(product, best_bid, -best_bid_amount))
-        conversion = -best_bid_amount
+        conversion = best_bid_amount
 
     return orders, info, marker, conversion
 
@@ -194,7 +255,7 @@ def orchid_policty(state: TradingState, order_depth: OrderDepth, previous_info: 
 products_mapping = {
     "AMETHYSTS": amethysts_policy,
     "STARFRUIT": starfruits_policy,
-    "ORCHID": orchid_policty,
+    "ORCHIDS": orchid_policy,
 }
 
 
@@ -227,12 +288,11 @@ class Trader:
             order_depth: OrderDepth = state.order_depths[product]
             orders = []
             info = {}
-            if product not in products_mapping:
-                continue
             orders, info, marker, conversion = products_mapping[product](
                 state, order_depth, previous_info.get(product)
             )
-            total_conversions += conversion
+            if conversion is not None:
+                total_conversions += conversion
             result[product] = orders
             markers[product] = marker
             previous_info[product]["generated"] = (
