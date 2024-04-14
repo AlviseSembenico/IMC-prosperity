@@ -58,7 +58,7 @@ def amethysts_policy(state: TradingState, order_depth: OrderDepth, previous_info
             # discard the short position
             orders.append(Order(product, acceptable_price, -current_position))
 
-    return orders, info, marker
+    return orders, info, marker, 0
 
 
 def starfruits_policy(
@@ -72,90 +72,130 @@ def starfruits_policy(
     marker = None
     threshold = 0.003
 
-    from sklearn.linear_model import LinearRegression
+    # from sklearn.linear_model import LinearRegression
 
-    current_price = compute_last_price(order_depth)
+    # current_price = compute_last_price(order_depth)
 
-    if len(previous_info["last_price"]) >= window_size:
-        best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
-        best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
-
-        Y = np.array(previous_info["last_price"][-window_size:]).reshape(-1, 1)
-        model = LinearRegression()
-        weight = np.ones(window_size)
-        model_w = model.fit(
-            np.linspace(0, window_size, num=window_size).reshape(-1, 1), Y, weight
-        )
-        slope = model_w.coef_[0]
-        last_slopes = np.array(previous_info["generated"].get("last_slopes", []))
-        # if 'operation' not in info['generated']
-        if abs(slope) < threshold and all(np.abs(last_slopes[-40:]) > threshold):
-            if last_slopes[-40:].mean() < 0:
-                # buy
-                # blue color
-                orders.append(Order(product, best_ask, -best_ask_amount))
-                info["operation"] = best_ask
-                marker = (1, best_ask)
-            else:
-                # sell
-                # red color
-                orders.append(Order(product, best_bid, -best_bid_amount))
-                info["operation"] = -best_bid
-                marker = (0, best_bid)
-
-        slopes = previous_info["generated"].get("last_slopes", [])
-        slopes.append(slope)
-        previous_info["generated"]["last_slopes"] = slopes
-    # if len(order_depth.sell_orders) != 0:
+    # if len(previous_info["last_price"]) >= window_size:
     #     best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
-
-    #     if len(previous_info["last_ask"]) >= window_size:
-    #         # detect down spikes in ask price
-    #         current_price_change = best_ask - previous_info["last_ask"][-1]
-    #         last_price_changes = np.abs(
-    #             np.diff(previous_info["last_ask"][-window_size:])
-    #         )
-
-    #         mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
-    #         mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
-    #         spread = mean_last_bid - mean_last_ask
-    #         best_ask_n = (mean_last_bid - best_ask) / spread
-    #         if (
-    #             best_ask < previous_info["last_ask"][-1]
-    #             and abs(current_price_change) > (np.mean(last_price_changes) * 2)
-    #             and best_ask_n < 0.3
-    #         ):
-    #             marker = (1, best_ask)
-    #             orders.append(Order(product, best_ask, -best_ask_amount))
-    #             info["last_purchase"] = best_ask
-
-    # if len(order_depth.buy_orders) != 0 and marker is None:
     #     best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
 
-    #     if len(previous_info["last_bid"]) >= window_size:
-    #         # detect down spikes in ask price
-    #         current_price_change = best_bid - previous_info["last_bid"][-1]
-    #         last_price_changes = np.abs(
-    #             np.diff(previous_info["last_bid"][-window_size:])
-    #         )
-
-    #         mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
-    #         mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
-    #         spread = mean_last_bid - mean_last_ask
-    #         best_bid_n = (best_bid - mean_last_ask) / spread
-    #         if (
-    #             best_bid > previous_info["last_bid"][-1]
-    #             and abs(current_price_change) > (np.mean(last_price_changes) * 2)
-    #             and best_bid_n < 0.6
-    #         ):
-    #             marker = (2, best_bid)
+    #     Y = np.array(previous_info["last_price"][-window_size:]).reshape(-1, 1)
+    #     model = LinearRegression()
+    #     weight = np.ones(window_size)
+    #     model_w = model.fit(
+    #         np.linspace(0, window_size, num=window_size).reshape(-1, 1), Y, weight
+    #     )
+    #     slope = model_w.coef_[0]
+    #     last_slopes = np.array(previous_info["generated"].get("last_slopes", []))
+    #     # if 'operation' not in info['generated']
+    #     if abs(slope) < threshold and all(np.abs(last_slopes[-40:]) > threshold):
+    #         if last_slopes[-40:].mean() < 0:
+    #             # buy
+    #             # blue color
+    #             orders.append(Order(product, best_ask, -best_ask_amount))
+    #             info["operation"] = best_ask
+    #             marker = (1, best_ask)
+    #         else:
+    #             # sell
+    #             # red color
     #             orders.append(Order(product, best_bid, -best_bid_amount))
-    #             info["last_sell"] = best_ask
+    #             info["operation"] = -best_bid
+    #             marker = (0, best_bid)
 
-    return orders, info, marker
+    #     slopes = previous_info["generated"].get("last_slopes", [])
+    #     slopes.append(slope)
+    #     previous_info["generated"]["last_slopes"] = slopes
+    if len(order_depth.sell_orders) != 0:
+        best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
+
+        if len(previous_info["last_ask"]) >= window_size:
+            # detect down spikes in ask price
+            current_price_change = best_ask - previous_info["last_ask"][-1]
+            last_price_changes = np.abs(
+                np.diff(previous_info["last_ask"][-window_size:])
+            )
+
+            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
+            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
+            spread = mean_last_bid - mean_last_ask
+            best_ask_n = (mean_last_bid - best_ask) / spread
+            if (
+                best_ask < previous_info["last_ask"][-1]
+                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
+                and best_ask_n < 0.3
+            ):
+                marker = (1, best_ask)
+                orders.append(Order(product, best_ask, -best_ask_amount))
+                info["last_purchase"] = best_ask
+
+    if len(order_depth.buy_orders) != 0 and marker is None:
+        best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
+
+        if len(previous_info["last_bid"]) >= window_size:
+            # detect down spikes in ask price
+            current_price_change = best_bid - previous_info["last_bid"][-1]
+            last_price_changes = np.abs(
+                np.diff(previous_info["last_bid"][-window_size:])
+            )
+
+            mean_last_bid = np.mean(previous_info["last_bid"][-window_size:])
+            mean_last_ask = np.mean(previous_info["last_ask"][-window_size:])
+            spread = mean_last_bid - mean_last_ask
+            best_bid_n = (best_bid - mean_last_ask) / spread
+            if (
+                best_bid > previous_info["last_bid"][-1]
+                and abs(current_price_change) > (np.mean(last_price_changes) * 2)
+                and best_bid_n < 0.6
+            ):
+                marker = (2, best_bid)
+                orders.append(Order(product, best_bid, -best_bid_amount))
+                info["last_sell"] = best_ask
+
+    return orders, info, marker, 0
 
 
-products_mapping = {"AMETHYSTS": amethysts_policy, "STARFRUIT": starfruits_policy}
+def orchid_policty(state: TradingState, order_depth: OrderDepth, previous_info: dict):
+    orders = []
+    info = {}
+    marker = None
+    conversion = None
+
+    product = "ORCHID"
+    # arbitrage
+    import_cost = state.observations.conversionObservations[product].importTariff
+    export_cost = state.observations.conversionObservations[product].exportTariff
+    transport_cost = state.observations.conversionObservations[product].transportFees
+
+    best_external_bid = (
+        state.observations.conversionObservations[product].bidPrice
+        + import_cost
+        + transport_cost
+    )
+    best_external_ask = (
+        state.observations.conversionObservations[product].askPrice
+        + export_cost
+        + transport_cost
+    )
+
+    best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
+    best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
+
+    if best_ask < best_external_bid:
+        orders.append(Order(product, best_ask, -best_ask_amount))
+        conversion = best_ask_amount
+    if best_bid > best_external_ask:
+        orders.append(Order(product, best_bid, -best_bid_amount))
+        conversion = -best_bid_amount
+
+    return orders, info, marker, conversion
+
+
+products_mapping = {
+    "AMETHYSTS": amethysts_policy,
+    "STARFRUIT": starfruits_policy,
+    "ORCHID": orchid_policty,
+}
 
 
 def generate_empty_info(products):
@@ -182,13 +222,17 @@ class Trader:
         # Orders to be placed on exchange matching engine
         result = {}
         markers = {}
+        total_conversions = 0
         for product in state.order_depths:
             order_depth: OrderDepth = state.order_depths[product]
             orders = []
             info = {}
-            orders, info, marker = products_mapping[product](
+            if product not in products_mapping:
+                continue
+            orders, info, marker, conversion = products_mapping[product](
                 state, order_depth, previous_info.get(product)
             )
+            total_conversions += conversion
             result[product] = orders
             markers[product] = marker
             previous_info[product]["generated"] = (
@@ -204,8 +248,7 @@ class Trader:
             previous_info[product]["marker"].append(marker)
 
         # Sample conversion request. Check more details below.
-        conversions = 1
         if not DEBUG:
             previous_info = jsonpickle.encode(previous_info)
-            return result, conversions, previous_info
-        return result, conversions, previous_info, markers
+            return result, total_conversions, previous_info
+        return result, total_conversions, previous_info, markers
